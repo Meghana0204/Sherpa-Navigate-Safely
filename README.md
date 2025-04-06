@@ -55,10 +55,10 @@ In the Himalayas, **Sherpas** are known for their **expert navigation**, **unmat
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/sherpa.git
-   cd sherpa
-
+   git clone https://github.com/Meghana0204/Sherpa-Navigate-Safely.git
+   cd Sherpa-Navigate-Safely
    Install dependencies
+   npm install
 
 bash
 Copy
