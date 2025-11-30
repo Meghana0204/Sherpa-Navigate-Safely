@@ -79,7 +79,34 @@ const MapComponent = ({
 
     if (onLocationSelect) onLocationSelect(lat, lng);
   };
-  
+
+  /** -----------------------
+   * FIND USER LOCATION (GPS)
+   ------------------------ */
+  // const handleFindMe = () => {
+  //   if (!navigator.geolocation) {
+  //     alert("Geolocation not supported");
+  //     return;
+  //   }
+
+  //   navigator.geolocation.getCurrentPosition(
+  //     (pos) => {
+  //       const lat = pos.coords.latitude;
+  //       const lng = pos.coords.longitude;
+
+  //       // update state
+  //       setUserLocation({ lat, lng });
+
+  //       // move the map
+  //       mapRef.current?.panTo({ lat, lng });
+  //       mapRef.current?.setZoom(16);
+  //     },
+  //     (err) => console.error("GPS Error:", err),
+  //     { enableHighAccuracy: true }
+  //   );
+  // };
+
+
   /** -----------------------
    * HEATMAP DATA (SAFE VERSION)
    ------------------------ */
@@ -109,8 +136,48 @@ const MapComponent = ({
           zoom={13}
           onLoad={(map) => {
             mapRef.current = map;
-            setGoogleReady(true);
+
+            // ⭐ ADD OFFICIAL GOOGLE MAPS "MY LOCATION" BUTTON
+            const locationButton = document.createElement("button");
+            locationButton.style.backgroundColor = "#fff";
+            locationButton.style.border = "none";
+            locationButton.style.outline = "none";
+            locationButton.style.width = "40px";
+            locationButton.style.height = "40px";
+            locationButton.style.borderRadius = "50%";
+            locationButton.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
+            locationButton.style.cursor = "pointer";
+            locationButton.style.padding = "0";
+            locationButton.style.marginRight = "10px";
+
+            // ⭐ REAL GOOGLE MAPS ICON
+            locationButton.innerHTML = `
+              <img 
+                src="src/components/images/blue dot.png"
+                style="width: 22px; height: 22px; margin: 9px;" 
+              />
+            `;
+
+            // Add button to top-right control
+            map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(locationButton);
+
+            // Click event → get real user location
+            locationButton.addEventListener("click", () => {
+              if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  const position = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                  };
+
+                  setUserLocation(position);
+                  map.panTo(position);
+                  map.setZoom(16);
+                });
+              }
+            });
           }}
+
           onClick={handleMapClick}
         >
           {/* HEATMAP */}
@@ -164,6 +231,16 @@ const MapComponent = ({
             <Search className="h-5 w-5" />
           </Button>
         </div>
+        {/* GPS BUTTON */}
+        {/* <Button
+          onClick={handleFindMe}
+          size="icon"
+          variant="outline"
+          className="absolute bottom-20 right-4 z-[1001] bg-background/80 backdrop-blur-sm hover:bg-background"
+        >
+          <Navigation className="h-5 w-5" />
+        </Button> */}
+
       </LoadScript>
     </div>
   );
