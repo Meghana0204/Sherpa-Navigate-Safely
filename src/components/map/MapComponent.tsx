@@ -1,3 +1,5 @@
+console.log("API KEY:", import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
+
 import React, { useEffect, useRef, useState } from "react";
 import {
   GoogleMap,
@@ -5,7 +7,7 @@ import {
   Marker,
   Circle,
   Autocomplete,
-  HeatmapLayer
+  HeatmapLayer,
 } from "@react-google-maps/api";
 
 import { Button } from "@/components/ui/button";
@@ -21,17 +23,13 @@ interface MapComponentProps {
   onLocationSelect?: (lat: number, lng: number) => void;
 }
 
-// Colors for severity markers
 const severityColors: Record<string, string> = {
   high: "#ef4444",
   medium: "#f59e0b",
   low: "#22c55e",
 };
 
-const containerStyle = {
-  width: "100%",
-  height: "100%",
-};
+const containerStyle = { width: "100%", height: "100%" };
 
 const MapComponent = ({
   height = "h-screen",
@@ -39,18 +37,20 @@ const MapComponent = ({
   incidents = mockIncidents,
   onLocationSelect,
 }: MapComponentProps) => {
-  const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY!;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  // State
-  const [mapCenter, setMapCenter] = useState({ lat: 12.9800, lng: 77.5920 });
+  const [googleReady, setGoogleReady] = useState(false);
+  const [mapCenter, setMapCenter] = useState({ lat: 12.98, lng: 77.592 });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMarker, setSearchMarker] = useState<{ lat: number; lng: number } | null>(null);
 
   const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  // 🌐 Handle Search
+  /** -----------------------
+   * SEARCH HANDLER
+   ------------------------ */
   const handleSearch = () => {
     if (!autoCompleteRef.current) return;
 
@@ -60,78 +60,89 @@ const MapComponent = ({
       return;
     }
 
-    const location = place.geometry.location;
-    const lat = location.lat();
-    const lng = location.lng();
+    const lat = place.geometry.location!.lat();
+    const lng = place.geometry.location!.lng();
 
     setSearchMarker({ lat, lng });
     setMapCenter({ lat, lng });
 
-    if (mapRef.current) {
-      mapRef.current.panTo({ lat, lng });
-      mapRef.current.setZoom(15);
-    }
+    mapRef.current?.panTo({ lat, lng });
+    mapRef.current?.setZoom(15);
   };
 
-  // 📍 Handle map click
+  /** -----------------------
+   * MAP CLICK HANDLER
+   ------------------------ */
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
+
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
 
     if (onLocationSelect) onLocationSelect(lat, lng);
   };
 
-  // 🔵 Locate user
+  /** -----------------------
+   * FIND USER LOCATION
+   ------------------------ */
   const handleFindMe = () => {
-    if (!navigator.geolocation) return alert("Geolocation not supported");
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported");
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+
         setUserLocation({ lat, lng });
 
-        if (mapRef.current) {
-          mapRef.current.panTo({ lat, lng });
-          mapRef.current.setZoom(15);
-        }
+        mapRef.current?.panTo({ lat, lng });
+        mapRef.current?.setZoom(15);
       },
-      (err) => console.error("Location error:", err),
+      (err) => console.error("Location Error:", err),
       { enableHighAccuracy: true }
     );
   };
 
-  // 🔥 Heatmap points
-  const heatmapPoints = incidents.map((i) => {
-    const weight =
-      i.severity === "high" ? 1.0 : i.severity === "medium" ? 0.6 : 0.3;
-    return { location: new google.maps.LatLng(i.lat, i.lng), weight };
-  });
+  /** -----------------------
+   * HEATMAP DATA (SAFE VERSION)
+   ------------------------ */
+  const heatmapPoints =
+    googleReady && window.google
+      ? incidents.map((i) => ({
+          location: new window.google.maps.LatLng(i.lat, i.lng),
+          weight:
+            i.severity === "high"
+              ? 1.0
+              : i.severity === "medium"
+              ? 0.6
+              : 0.3,
+        }))
+      : [];
 
   return (
     <div className={`relative ${height} w-full`}>
       <LoadScript
         googleMapsApiKey={apiKey}
         libraries={["places", "visualization"]}
+        onLoad={() => setGoogleReady(true)}
       >
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={mapCenter}
           zoom={13}
-          onLoad={(map) => (mapRef.current = map)}
+          onLoad={(map) => {
+            mapRef.current = map;
+            setGoogleReady(true);
+          }}
           onClick={handleMapClick}
         >
-          {/* 🔥 Heatmap */}
-          <HeatmapLayer
-            data={heatmapPoints}
-            options={{
-              radius: 25,
-              opacity: 0.8,
-            }}
-          />
+          {/* HEATMAP */}
+          {googleReady && <HeatmapLayer data={heatmapPoints} />}
 
-          {/* 📍 User Location */}
+          {/* USER LOCATION */}
           {userLocation && (
             <Marker
               position={userLocation}
@@ -141,34 +152,35 @@ const MapComponent = ({
             />
           )}
 
-          {/* 🔎 Search marker */}
+          {/* SEARCH MARKER */}
           {searchMarker && <Marker position={searchMarker} />}
 
-          {/* 🟢 Incident markers */}
-          {incidents.map((incident, index) => (
-            <Circle
-              key={index}
-              center={{ lat: incident.lat, lng: incident.lng }}
-              radius={120}
-              options={{
-                fillColor: severityColors[incident.severity],
-                fillOpacity: 0.5,
-                strokeColor: severityColors[incident.severity],
-                strokeWeight: 1,
-              }}
-            />
-          ))}
+          {/* INCIDENT MARKERS */}
+          {googleReady &&
+            incidents.map((incident, index) => (
+              <Circle
+                key={index}
+                center={{ lat: incident.lat, lng: incident.lng }}
+                radius={120}
+                options={{
+                  fillColor: severityColors[incident.severity],
+                  fillOpacity: 0.5,
+                  strokeColor: severityColors[incident.severity],
+                  strokeWeight: 1,
+                }}
+              />
+            ))}
         </GoogleMap>
 
-        {/* 🔍 Search Input */}
+        {/* SEARCH BAR */}
         <div className="absolute top-4 right-4 z-[1001] bg-background/80 backdrop-blur-sm p-2 rounded-md flex gap-2">
           <Autocomplete
             onLoad={(ac) => (autoCompleteRef.current = ac)}
             onPlaceChanged={handleSearch}
           >
             <Input
-              className="w-64 bg-background/80"
               placeholder="Search location"
+              className="w-64 bg-background/80"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -179,7 +191,7 @@ const MapComponent = ({
           </Button>
         </div>
 
-        {/* 📍 Find Me Button */}
+        {/* FIND ME BUTTON */}
         <Button
           className="absolute bottom-20 right-4 z-[1001] bg-background/80 backdrop-blur-sm"
           size="icon"
