@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Navigation } from "lucide-react";
 import { CrimeIncident } from "@/types/incidents";
 import { mockIncidents } from "@/data/mockData";
+import MapControls from "./MapControls";
 
 interface MapComponentProps {
   height?: string;
@@ -79,33 +80,6 @@ const MapComponent = ({
 
     if (onLocationSelect) onLocationSelect(lat, lng);
   };
-
-  /** -----------------------
-   * FIND USER LOCATION (GPS)
-   ------------------------ */
-  // const handleFindMe = () => {
-  //   if (!navigator.geolocation) {
-  //     alert("Geolocation not supported");
-  //     return;
-  //   }
-
-  //   navigator.geolocation.getCurrentPosition(
-  //     (pos) => {
-  //       const lat = pos.coords.latitude;
-  //       const lng = pos.coords.longitude;
-
-  //       // update state
-  //       setUserLocation({ lat, lng });
-
-  //       // move the map
-  //       mapRef.current?.panTo({ lat, lng });
-  //       mapRef.current?.setZoom(16);
-  //     },
-  //     (err) => console.error("GPS Error:", err),
-  //     { enableHighAccuracy: true }
-  //   );
-  // };
-
 
   /** -----------------------
    * HEATMAP DATA (SAFE VERSION)
@@ -213,6 +187,8 @@ const MapComponent = ({
             ))}
         </GoogleMap>
 
+        <MapControls mapRef={mapRef} />
+
         {/* SEARCH BAR */}
         <div className="absolute top-4 right-4 z-[1001] bg-background/80 backdrop-blur-sm p-2 rounded-md flex gap-2">
           <Autocomplete
@@ -231,16 +207,6 @@ const MapComponent = ({
             <Search className="h-5 w-5" />
           </Button>
         </div>
-        {/* GPS BUTTON */}
-        {/* <Button
-          onClick={handleFindMe}
-          size="icon"
-          variant="outline"
-          className="absolute bottom-20 right-4 z-[1001] bg-background/80 backdrop-blur-sm hover:bg-background"
-        >
-          <Navigation className="h-5 w-5" />
-        </Button> */}
-
       </LoadScript>
     </div>
   );

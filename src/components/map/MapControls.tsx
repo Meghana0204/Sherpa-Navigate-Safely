@@ -1,96 +1,104 @@
-
-import React from 'react';
-import { useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { Button } from '@/components/ui/button';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Layers
-} from 'lucide-react';
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Layers } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface MapStyle {
-  name: string;
-  url: string;
+interface MapControlsProps {
+  mapRef: React.MutableRefObject<google.maps.Map | null>;
 }
 
-const MapControls = () => {
-  const map = useMap();
-  
-  const handleZoomIn = () => {
-    map.zoomIn();
+// ⭐ Google Maps Dark Mode Styles
+const darkModeStyle: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1d1d1d" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d1d" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8e8e8e" }] },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#2a2a2a" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0e0e0e" }],
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [{ color: "#121212" }],
+  },
+];
+
+// ⭐ Main Component
+const MapControls: React.FC<MapControlsProps> = ({ mapRef }) => {
+  const [currentStyle, setCurrentStyle] = useState("default");
+
+  const applyMapStyle = (style: string) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    setCurrentStyle(style);
+
+    switch (style) {
+      case "default":
+        map.setMapTypeId("roadmap");
+        map.setOptions({ styles: [] });
+        break;
+
+      case "satellite":
+        map.setMapTypeId("hybrid");
+        map.setOptions({ styles: [] });
+        break;
+
+      case "terrain":
+        map.setMapTypeId("terrain");
+        map.setOptions({ styles: [] });
+        break;
+
+      case "dark":
+        map.setMapTypeId("roadmap");
+        map.setOptions({ styles: darkModeStyle });
+        break;
+
+      default:
+        break;
+    }
   };
-  
-  const handleZoomOut = () => {
-    map.zoomOut();
-  };
-  
-  // Define different map styles/layers
-  const mapStyles: MapStyle[] = [
-    { name: 'Street', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' },
-    { name: 'Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
-    { name: 'Dark', url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png' }
-  ];
-  
-  const changeMapStyle = (styleUrl: string) => {
-    // Remove current tile layers
-    map.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) {
-        map.removeLayer(layer);
-      }
-    });
-    
-    // Add new tile layer
-    new L.TileLayer(styleUrl, {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-  };
-  
+
   return (
     <div className="absolute left-4 bottom-20 z-[999] flex flex-col gap-2">
-      <Button 
-        onClick={handleZoomIn} 
-        size="icon" 
-        variant="outline"
-        className="bg-background/80 backdrop-blur-sm hover:bg-background"
-      >
-        <ZoomIn className="h-5 w-5" />
-      </Button>
-      
-      <Button 
-        onClick={handleZoomOut} 
-        size="icon" 
-        variant="outline"
-        className="bg-background/80 backdrop-blur-sm hover:bg-background"
-      >
-        <ZoomOut className="h-5 w-5" />
-      </Button>
-      
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            size="icon" 
+          <Button
+            size="icon"
             variant="outline"
             className="bg-background/80 backdrop-blur-sm hover:bg-background"
           >
             <Layers className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
+
         <DropdownMenuContent align="start">
-          {mapStyles.map((style) => (
-            <DropdownMenuItem 
-              key={style.name}
-              onClick={() => changeMapStyle(style.url)}
-            >
-              {style.name}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuItem onClick={() => applyMapStyle("default")}>
+            Default / Roadmap
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => applyMapStyle("satellite")}>
+            Satellite
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => applyMapStyle("terrain")}>
+            Terrain
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => applyMapStyle("dark")}>
+            Dark Mode
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
