@@ -1,5 +1,3 @@
-console.log("API KEY:", import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
-
 import React, { useEffect, useRef, useState } from "react";
 import {
   GoogleMap,
@@ -81,31 +79,7 @@ const MapComponent = ({
 
     if (onLocationSelect) onLocationSelect(lat, lng);
   };
-
-  /** -----------------------
-   * FIND USER LOCATION
-   ------------------------ */
-  const handleFindMe = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation not supported");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        setUserLocation({ lat, lng });
-
-        mapRef.current?.panTo({ lat, lng });
-        mapRef.current?.setZoom(15);
-      },
-      (err) => console.error("Location Error:", err),
-      { enableHighAccuracy: true }
-    );
-  };
-
+  
   /** -----------------------
    * HEATMAP DATA (SAFE VERSION)
    ------------------------ */
@@ -190,16 +164,6 @@ const MapComponent = ({
             <Search className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* FIND ME BUTTON */}
-        <Button
-          className="absolute bottom-20 right-4 z-[1001] bg-background/80 backdrop-blur-sm"
-          size="icon"
-          variant="outline"
-          onClick={handleFindMe}
-        >
-          <Navigation className="h-5 w-5" />
-        </Button>
       </LoadScript>
     </div>
   );
