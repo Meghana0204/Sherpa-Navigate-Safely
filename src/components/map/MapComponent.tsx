@@ -1,5 +1,3 @@
-console.log("API KEY:", import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
-
 import React, { useEffect, useRef, useState } from "react";
 import {
   GoogleMap,
@@ -8,7 +6,6 @@ import {
   Circle,
   Autocomplete,
   HeatmapLayer,
-  InfoWindow,
 } from "@react-google-maps/api";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Navigation } from "lucide-react";
 import { CrimeIncident } from "@/types/incidents";
 import { mockIncidents } from "@/data/mockData";
+import MapControls from "./MapControls";
 
 interface MapComponentProps {
   height?: string;
@@ -32,8 +30,6 @@ const severityColors: Record<string, string> = {
 
 const containerStyle = { width: "100%", height: "100%" };
 
-const libraries: ("places" | "visualization")[] = ["places", "visualization"];
-
 const MapComponent = ({
   height = "h-screen",
   showControls = true,
@@ -43,106 +39,13 @@ const MapComponent = ({
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  useEffect(() => {
-    // Global handler for Google Maps auth failure
-    // @ts-ignore
-    window.gm_authFailure = () => {
-      console.error("Google Maps Authentication Error");
-      alert(
-        "Google Maps API Error: Please ensure your API key is valid and has 'Maps JavaScript API' and 'Places API' enabled in the Google Cloud Console. Billing must also be enabled."
-      );
-    };
-    return () => {
-      // @ts-ignore
-      window.gm_authFailure = undefined;
-    };
-  }, []);
-
   const [googleReady, setGoogleReady] = useState(false);
   const [mapCenter, setMapCenter] = useState({ lat: 12.98, lng: 77.592 });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMarker, setSearchMarker] = useState<{ lat: number; lng: number } | null>(null);
 
-  const [userDisplayAddress, setUserDisplayAddress] = useState<string | null>(null);
-  const [showUserInfo, setShowUserInfo] = useState(false);
-
   const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
-
-  /** -----------------------
-   * FALLBACK GEOCODER (lat/lng -> generic address)
-   ------------------------ */
-  const reverseGeocodeLocation = (lat: number, lng: number) => {
-    if (!googleReady || !window.google) {
-      console.error("Google object not ready for Geocoder");
-      return;
-    }
-
-    if (!geocoderRef.current) {
-      geocoderRef.current = new window.google.maps.Geocoder();
-    }
-
-    geocoderRef.current.geocode(
-      { location: { lat, lng } },
-      (results, status) => {
-        if (status === "OK" && results && results[0]) {
-          setUserDisplayAddress(results[0].formatted_address);
-          setShowUserInfo(true);
-        } else {
-          console.error("Geocoder failed due to:", status);
-          setUserDisplayAddress("Address not found");
-          setShowUserInfo(true);
-        }
-      }
-    );
-  };
-
-  /** -----------------------
-   * TRY NEARBY PLACES FIRST, THEN FALLBACK TO GEOCODER
-   ------------------------ */
-  const fetchPlaceOrAddressForLocation = (lat: number, lng: number) => {
-    if (!googleReady || !window.google) {
-      console.error("Google object not ready for PlacesService");
-      return;
-    }
-
-    if (!placesServiceRef.current && mapRef.current) {
-      placesServiceRef.current = new window.google.maps.places.PlacesService(
-        mapRef.current
-      );
-    }
-
-    const service = placesServiceRef.current;
-
-    if (!service) {
-      reverseGeocodeLocation(lat, lng);
-      return;
-    }
-
-    service.nearbySearch(
-      {
-        location: { lat, lng },
-        radius: 100, // meters
-      },
-      (results, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-          const place = results[0];
-          const name = place.name || "Nearby Place";
-          const vicinity = place.vicinity || "";
-
-          const display = vicinity ? `${name}, ${vicinity}` : name;
-
-          setUserDisplayAddress(display);
-          setShowUserInfo(true);
-        } else {
-          // If no nearby POI, fallback to generic address
-          reverseGeocodeLocation(lat, lng);
-        }
-      }
-    );
-  };
 
   /** -----------------------
    * SEARCH HANDLER
@@ -168,8 +71,6 @@ const MapComponent = ({
 
   /** -----------------------
    * MAP CLICK HANDLER
-   * - Move blue marker to clicked point
-   * - Update address
    ------------------------ */
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
@@ -177,77 +78,30 @@ const MapComponent = ({
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
 
-    const newLocation = { lat, lng };
-    setUserLocation(newLocation);
-    setMapCenter(newLocation);
-
-    fetchPlaceOrAddressForLocation(lat, lng);
-
     if (onLocationSelect) onLocationSelect(lat, lng);
   };
 
   /** -----------------------
-   * FIND USER LOCATION
-   ------------------------ */
-  const handleFindMe = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation not supported");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        const newLocation = { lat, lng };
-
-        setUserLocation(newLocation);
-        setMapCenter(newLocation);
-
-        if (mapRef.current) {
-          mapRef.current.panTo(newLocation);
-          mapRef.current.setZoom(15);
-        }
-        // We let user click/drag to refine, so no address fetch here.
-      },
-      (err) => {
-        console.error("Location Error:", err);
-        alert("Unable to fetch your location. Please allow location access.");
-      },
-      { enableHighAccuracy: true }
-    );
-  };
-
-  /** -----------------------
-   * AUTO-LOCATE ON MOUNT
-   ------------------------ */
-  useEffect(() => {
-    handleFindMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** -----------------------
-   * HEATMAP DATA
+   * HEATMAP DATA (SAFE VERSION)
    ------------------------ */
   const heatmapPoints =
     googleReady && window.google
       ? incidents.map((i) => ({
-        location: new window.google.maps.LatLng(i.lat, i.lng),
-        weight:
-          i.severity === "high"
-            ? 1.0
-            : i.severity === "medium"
+          location: new window.google.maps.LatLng(i.lat, i.lng),
+          weight:
+            i.severity === "high"
+              ? 1.0
+              : i.severity === "medium"
               ? 0.6
               : 0.3,
-      }))
+        }))
       : [];
 
   return (
     <div className={`relative ${height} w-full`}>
       <LoadScript
         googleMapsApiKey={apiKey}
-        libraries={libraries}
+        libraries={["places", "visualization"]}
         onLoad={() => setGoogleReady(true)}
       >
         <GoogleMap
@@ -256,78 +110,61 @@ const MapComponent = ({
           zoom={13}
           onLoad={(map) => {
             mapRef.current = map;
-            setGoogleReady(true);
 
-            if (window.google) {
-              geocoderRef.current = new window.google.maps.Geocoder();
-              placesServiceRef.current = new window.google.maps.places.PlacesService(
-                map
-              );
-            }
+            // ⭐ ADD OFFICIAL GOOGLE MAPS "MY LOCATION" BUTTON
+            const locationButton = document.createElement("button");
+            locationButton.style.backgroundColor = "#fff";
+            locationButton.style.border = "none";
+            locationButton.style.outline = "none";
+            locationButton.style.width = "40px";
+            locationButton.style.height = "40px";
+            locationButton.style.borderRadius = "50%";
+            locationButton.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
+            locationButton.style.cursor = "pointer";
+            locationButton.style.padding = "0";
+            locationButton.style.marginRight = "10px";
+
+            // ⭐ REAL GOOGLE MAPS ICON
+            locationButton.innerHTML = `
+              <img 
+                src="src/components/images/blue dot.png"
+                style="width: 22px; height: 22px; margin: 9px;" 
+              />
+            `;
+
+            // Add button to top-right control
+            map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(locationButton);
+
+            // Click event → get real user location
+            locationButton.addEventListener("click", () => {
+              if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  const position = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                  };
+
+                  setUserLocation(position);
+                  map.panTo(position);
+                  map.setZoom(16);
+                });
+              }
+            });
           }}
+
           onClick={handleMapClick}
         >
           {/* HEATMAP */}
           {googleReady && <HeatmapLayer data={heatmapPoints} />}
 
-          {/* USER LOCATION MARKER (DRAGGABLE + POPUP) */}
+          {/* USER LOCATION */}
           {userLocation && (
             <Marker
               position={userLocation}
-              draggable
               icon={{
                 url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
               }}
-              onClick={() => {
-                fetchPlaceOrAddressForLocation(
-                  userLocation.lat,
-                  userLocation.lng
-                );
-              }}
-              onDragEnd={(e) => {
-                if (!e.latLng) return;
-                const lat = e.latLng.lat();
-                const lng = e.latLng.lng();
-
-                const newLocation = { lat, lng };
-                setUserLocation(newLocation);
-                setMapCenter(newLocation);
-
-                fetchPlaceOrAddressForLocation(lat, lng);
-                if (onLocationSelect) onLocationSelect(lat, lng);
-              }}
-            >
-              {showUserInfo && userDisplayAddress && (
-                <InfoWindow
-                  position={userLocation}
-                  onCloseClick={() => setShowUserInfo(false)}
-                >
-                  <div style={{ maxWidth: "260px" }}>
-                    <h3 style={{ fontWeight: 600, marginBottom: 4 }}>
-                      Your Location
-                    </h3>
-                    <p style={{ fontSize: "0.85rem", lineHeight: 1.3 }}>
-                      {userDisplayAddress}
-                    </p>
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        userDisplayAddress
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: "0.8rem",
-                        textDecoration: "underline",
-                        display: "inline-block",
-                        marginTop: 4,
-                      }}
-                    >
-                      View on Google Maps
-                    </a>
-                  </div>
-                </InfoWindow>
-              )}
-            </Marker>
+            />
           )}
 
           {/* SEARCH MARKER */}
@@ -350,6 +187,8 @@ const MapComponent = ({
             ))}
         </GoogleMap>
 
+        <MapControls mapRef={mapRef} />
+
         {/* SEARCH BAR */}
         <div className="absolute top-4 right-4 z-[1001] bg-background/80 backdrop-blur-sm p-2 rounded-md flex gap-2">
           <Autocomplete
@@ -368,16 +207,6 @@ const MapComponent = ({
             <Search className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* FIND ME BUTTON */}
-        <Button
-          className="absolute bottom-20 right-4 z-[1001] bg-background/80 backdrop-blur-sm"
-          size="icon"
-          variant="outline"
-          onClick={handleFindMe}
-        >
-          <Navigation className="h-5 w-5" />
-        </Button>
       </LoadScript>
     </div>
   );
